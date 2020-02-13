@@ -54,10 +54,16 @@ setup(
                       'boto3',
                       'requests',
                       'tqdm',
-                      'regex'],
+                      'regex',
+                      # ADDED
+                      'tensorboardX',
+                      'pandas',
+                      'sklearn',
+                      'scipy'],
     entry_points={
       'console_scripts': [
         "pytorch_pretrained_bert=pytorch_pretrained_bert.__main__:main",
+        "bert_finetune_lid=pytorch_pretrained_bert.lid.run_classifier:main"
       ]
     },
     # python_requires='>=3.5.0',

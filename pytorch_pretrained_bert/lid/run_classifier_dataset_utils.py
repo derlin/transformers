@@ -74,6 +74,10 @@ class DataProcessor(object):
         """Gets the list of labels for this data set."""
         raise NotImplementedError()
 
+    def get_labels_weights(self):
+        """Gets the class weights, useful for unbalanced datasets"""
+        return None
+
     @classmethod
     def _read_tsv(cls, input_file, quotechar=None):
         """Reads a tab separated value file."""
@@ -86,6 +90,70 @@ class DataProcessor(object):
                 lines.append(line)
             return lines
 
+
+# ==== custom
+import pandas as pd
+
+class PandasProcessor(DataProcessor):
+    """ 
+    Data directory should contain CSV files train.csv, dev.csv, test.csv with columns text and label.
+    Labels are read from the environment variable BERT_LABELS as comma-separated values. 
+    e.g. export BERT_LABELS='label1,label2'
+    """
+    _LBL_COL = 'label'
+    _TXT_COL = 'text'
+    _LABELS_ENV_VAR = 'BERT_LABELS'
+    _WEIGHTS_ENV_VAR = 'BERT_LABELS_WEIGHTS'
+
+    def __init__(self):
+        if self._LABELS_ENV_VAR not in os.environ:
+            raise Exception('{0} is not set. Please use export {0}="label_1,label_2,...".'.format(self._LABELS_ENV_VAR))
+        self.labels = os.environ.get(self._LABELS_ENV_VAR).split(',')
+        logger.info("USING LABELS {}".format(self.labels))
+
+        self.weights = None
+        if self._WEIGHTS_ENV_VAR in os.environ:
+            try:
+                self.weights = [float(w) for w in os.environ.get(self._WEIGHTS_ENV_VAR).split(',')]
+                if len(self.weights) != len(self.labels):
+                    raise Exception('Number of label weights ({}) != number of labels ({}).').format(
+                        len(self.weights), len(self.labels)
+                    )
+                logger.info("USING LABEL WEIGHTS {}".format(self.weights))
+            except:
+                raise Exception('{0}, invalid format. Should be "weight_1,weight_2,...".'.format(self._LABELS_ENV_VAR))
+
+    def get_train_examples(self, data_dir):
+        """See base class."""
+        return self._create_examples(data_dir, 'train')
+
+    def get_dev_examples(self, data_dir):
+        """See base class."""
+        return self._create_examples(data_dir, 'dev')
+
+    def get_labels(self):
+        """See base class."""
+        return self.labels
+
+    def get_label_weights(self):
+        """See base class."""
+        return self.weights
+
+    def _create_examples(self, data_dir, typ):
+        """Creates examples for the training and dev sets."""
+        filename = os.path.join(data_dir, typ + '.csv')
+        logger.info("LOOKING AT {}".format(filename))
+
+        df = pd.read_csv(filename)
+        if not all(col in df.columns for col in [self._LBL_COL, self._TXT_COL]):
+            raise Exception('Missing one of %s, %s column in %s' % (self._LBL_COL, self._TXT_COL, filename))
+        
+        df['idx'] = df.index # add numbers
+        return df.apply(lambda r: InputExample(
+                guid='%s-%s' % (typ, r['idx']), text_a=r[self._TXT_COL], text_b='', label=r[self._LBL_COL]), axis=1)
+
+
+# ==== end custom
 
 class MrpcProcessor(DataProcessor):
     """Processor for the MRPC data set (GLUE version)."""
@@ -542,6 +610,9 @@ def compute_metrics(task_name, preds, labels):
         return {"acc": simple_accuracy(preds, labels)}
     elif task_name == "wnli":
         return {"acc": simple_accuracy(preds, labels)}
+    # CUSTOM
+    elif task_name == "pandas": 
+        return {"acc": simple_accuracy(preds, labels)}
     else:
         raise KeyError(task_name)
 
@@ -556,6 +627,7 @@ processors = {
     "qnli": QnliProcessor,
     "rte": RteProcessor,
     "wnli": WnliProcessor,
+    'pandas': PandasProcessor, # CUSTOM
 }
 
 output_modes = {
@@ -568,4 +640,5 @@ output_modes = {
     "qnli": "classification",
     "rte": "classification",
     "wnli": "classification",
+    'pandas': 'classification' # CUSTOM
 }

@@ -39,7 +39,7 @@ from pytorch_pretrained_bert.modeling import BertForSequenceClassification
 from pytorch_pretrained_bert.tokenization import BertTokenizer
 from pytorch_pretrained_bert.optimization import BertAdam, WarmupLinearSchedule
 
-from run_classifier_dataset_utils import processors, output_modes, convert_examples_to_features, compute_metrics
+from pytorch_pretrained_bert.lid.run_classifier_dataset_utils import processors, output_modes, convert_examples_to_features, compute_metrics
 
 if sys.version_info[0] == 2:
     import cPickle as pickle
@@ -141,6 +141,7 @@ def main():
                         help="Loss scaling to improve fp16 numeric stability. Only used when fp16 set to True.\n"
                              "0 (default value): dynamic loss scaling.\n"
                              "Positive power of 2: static loss scaling value.\n")
+    parser.add_argument('--freeze', action='store_true', help='Freeze BERT layers.') # ADDED
     parser.add_argument('--server_ip', type=str, default='', help="Can be used for distant debugging.")
     parser.add_argument('--server_port', type=str, default='', help="Can be used for distant debugging.")
     args = parser.parse_args()
@@ -201,12 +202,23 @@ def main():
     label_list = processor.get_labels()
     num_labels = len(label_list)
 
+    # ADDED
+    label_weights = processor.get_labels_weights()
+    if label_weights is not None and output_mode != "classification":
+        logger.warn("Label weights set on something else than classification. This is useless.")
+
     if args.local_rank not in [-1, 0]:
         torch.distributed.barrier()  # Make sure only the first process in distributed training will download model & vocab
     tokenizer = BertTokenizer.from_pretrained(args.bert_model, do_lower_case=args.do_lower_case)
     model = BertForSequenceClassification.from_pretrained(args.bert_model, num_labels=num_labels)
     if args.local_rank == 0:
         torch.distributed.barrier()
+    
+    if args.freeze:
+        # ADDED see https://github.com/huggingface/pytorch-transformers/issues/400
+        for param in model.bert.parameters():
+            param.requires_grad = False
+        logger.info('Froze BERT layers.')
 
     if args.fp16:
         model.half()
@@ -311,7 +323,7 @@ def main():
                 logits = model(input_ids, token_type_ids=segment_ids, attention_mask=input_mask)
 
                 if output_mode == "classification":
-                    loss_fct = CrossEntropyLoss()
+                    loss_fct = CrossEntropyLoss(label_weights)
                     loss = loss_fct(logits.view(-1, num_labels), label_ids.view(-1))
                 elif output_mode == "regression":
                     loss_fct = MSELoss()
