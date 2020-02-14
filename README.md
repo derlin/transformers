@@ -3,7 +3,7 @@ Fork of pytorch-pretrained-BERT (now transformers) at commit `78462aad6113d50063
 Notes: 
 
 * this is targeted at **BERT classification tasks**, i.e. fine-tuning a BERT model for language identification. 
-* the install package is called `pytorch-pretrained-bert`
+* the installed package is called `pytorch-pretrained-bert-lid`
 
 ## Additions / Improvements
 
