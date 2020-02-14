@@ -1,7 +1,9 @@
 Fork of pytorch-pretrained-BERT (now transformers) at commit `78462aad6113d50063d8251e27dbaadb7f44fbf0`.
 
-Note: this is targeted at **BERT classification tasks**, i.e. fine-tuning a BERT model for language identification. 
+Notes: 
 
+* this is targeted at **BERT classification tasks**, i.e. fine-tuning a BERT model for language identification. 
+* the install package is called `pytorch-pretrained-bert`
 
 ## Additions / Improvements
 
@@ -9,28 +11,33 @@ Main changes:
 
 1. ability to freeze BERT layers (hence training only the classifier on top);
 2. ability to load data from a CSV file + specify label weights (see below);
-3. ability to run the classifier using the bash command `bert_finetune_lid` after install (new entrypoint).
+3. ability to run the classifier using the bash command `bert_run_classifier` after install (new entrypoint).
 
 
 ## Usage
 
-**train.csv**
+**data directory**
 
-The CSV file with the training data should have two mandatory columns (others are ignored):
+The data directory should contain CSV files `train.csv`, `dev.csv`, `test.csv` with two mandatory columns (others are ignored): 
 * `text`: the input examples,
 * `label`: the true label (i.e. the "language").
 
-**environ.txt**
 
-A file defining the labels and label weights (optional):
+**labels and weights**
+
+Labels are read from the environment variable `BERT_LABELS` as comma-separated values. 
+If you have class imbalance, you can also set a `BERT_LABELS_WEIGHT` environment variable, with the same number of 
+comma-separated values as `BERT_LABELS` and summing to 1.
+
+For example:
 ```bash
 export BERT_LABELS="afr,bar,deu,est,frr,grb,gsw,knn,ksh,lim,ltz,nds,pfl,som,swa-swh,zea-vls-nld"
 # the below line is needed only if you have unbalanced classes. If not, comment it !
 export BERT_LABELS_WEIGHTS="0.1812,0.2648,0.1812,0.1812,0.8824,0.1812,0.1812,1.0,0.8208,0.1812,0.1812,0.1812,0.8334,0.1812,0.2222,0.1812"
 ```
 
-Alternatively, you can just run those commands in the terminal before calling `bert_finetune_lid`.
-This file is only necessary if you plan to use the script below.
+I usually put them into a `environ.txt` file alongside the data, that I also copy to the output directory for further reference
+(see example script below).
 
 **running the classifier**
 
@@ -38,7 +45,7 @@ What is important:
 
 * ensure you "source" the `environ.txt` file, or set the environment variable `BERT_LABELS`;
 * ensure you use the `--task_name` is set to `pandas`;
-* ensure the `--data-dir` points to the directory where `train.csv` is located;
+* ensure the `--data-dir` points to the directory where `train.csv` (+ dev and test) is located;
 * the rest is up to you.
 
 Here is an example script:
@@ -70,7 +77,7 @@ NUM_TRAIN_EPOCHS=1.0
 export PYTHONUNBUFFERED=1
 
 # launch
-command="bert_finetune_lid \
+command="bert_run_classifier \
   --task_name "pandas" \
   --do_train \
   --data_dir $OUTPUT_DIR \
